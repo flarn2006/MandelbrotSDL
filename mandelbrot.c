@@ -313,12 +313,12 @@ int main(int argc, char *argv[])
 
 			if (update_view) {
 				if (opts.flags & OPT_CLEAR) {
-					Uint32 red = SDL_MapRGB(sfc->format, 255, 0, 0);
+					Uint32 color = SDL_MapRGB(sfc->format, 32, 32, 32);
 					SDL_Rect rect;
 					rect.x = rect.y = 0;
 					rect.w = opts.width;
 					rect.h = opts.height;
-					SDL_FillRect(sfc, &rect, red);
+					SDL_FillRect(sfc, &rect, color);
 				}
 				generate_fractal(sfc, &opts, &view, threads);
 			}
