@@ -156,6 +156,9 @@ int main(int argc, char *argv[])
 
 	FILE *palette_file = NULL;
 
+	struct view_range view;
+	init_options(&opts, &view);
+
 	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:t:c")) != -1) {
 		switch (opt) {
 		case 'w':
@@ -197,9 +200,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s: thread count must be between 1 and the current height (%d)\n", argv[0], opts.height);
 		return 2;
 	}
-
-	struct view_range view;
-	init_options(&opts, &view);
 
 	struct thread_data *threads = calloc(opts.threads, sizeof(struct thread_data));
 	int i; for (i=0; i<opts.threads; ++i) {
