@@ -5,7 +5,6 @@
 #include <getopt.h>
 #include <SDL2/SDL.h>
 
-#define MAX_THREADS 1024  /* It won't actually create this many threads unless the user tells it to. */
 #define DEFAULT_ITER_COUNT 768
 
 #define OPT_CLEAR 1
@@ -35,16 +34,20 @@ struct options {
 	int threads;
 };
 
+struct view_range {
+	coord_t xmin;
+	coord_t xmax;
+	coord_t ymin;
+	coord_t ymax;
+};
+
 struct thread_data {
 	short flags;
 	pthread_t thread;
 	int index;
 	SDL_Surface *sfc;
 	const struct options *opts;
-	coord_t xmin;
-	coord_t xmax;
-	coord_t ymin;
-	coord_t ymax;
+	struct view_range view;
 };
 
 coord_t map(coord_t value, coord_t inputMin, coord_t inputMax, coord_t outputMin, coord_t outputMax)
@@ -110,8 +113,8 @@ void *thread_start(void *arg)
 				PRINT_THREAD_STATUS("interrupted!");
 				break;
 			} else {
-				coord_t yy = map(y, td->opts->height-1, 0, td->ymin, td->ymax);
-				generate_row(y, td->sfc, td->opts, td->xmin, td->xmax, yy);
+				coord_t yy = map(y, td->opts->height-1, 0, td->view.ymin, td->view.ymax);
+				generate_row(y, td->sfc, td->opts, td->view.xmin, td->view.xmax, yy);
 			}
 		}
 		td->flags &= ~THREAD_BUSY;
@@ -123,24 +126,24 @@ void *thread_start(void *arg)
 	return NULL;
 }
 
-void generate_fractal(SDL_Surface *sfc, const struct options *opts, coord_t xmin, coord_t xmax, coord_t ymin, coord_t ymax, struct thread_data *threads)
+void generate_fractal(SDL_Surface *sfc, const struct options *opts, struct view_range *view, struct thread_data *threads)
 {
 	int i; for (i=0; i<opts->threads; ++i) {
-		threads[i].xmin = xmin;
-		threads[i].xmax = xmax;
-		threads[i].ymin = ymin;
-		threads[i].ymax = ymax;
+		threads[i].view.xmin = view->xmin;
+		threads[i].view.xmax = view->xmax;
+		threads[i].view.ymin = view->ymin;
+		threads[i].view.ymax = view->ymax;
 		threads[i].flags |= THREAD_BEGIN;
 	}
 }
 
-void init_options(struct options *opts, coord_t *xmin, coord_t *xmax, coord_t *ymin, coord_t *ymax)
+void init_options(struct options *opts, struct view_range *view)
 {
 	opts->iterations = DEFAULT_ITER_COUNT;
-	*xmin = -2.0;
-	*xmax = 1.0;
-	*ymin = 1.0;
-	*ymax = -1.0;
+	view->xmin = -2.0;
+	view->xmax = 1.0;
+	view->ymin = 1.0;
+	view->ymax = -1.0;
 }
 
 int main(int argc, char *argv[])
@@ -185,28 +188,28 @@ int main(int argc, char *argv[])
 			break;
 		case 't':
 			opts.threads = atoi(optarg);
-			if (opts.threads < 1 || opts.threads > MAX_THREADS) {
-				fprintf(stderr, "%s: thread count must be between 1 and %d\n", argv[0], MAX_THREADS);
-				return 2;
-			}
 			break;
 		case 'c':
 			opts.flags |= OPT_CLEAR;
 		}
 	}
+	if (opts.threads < 1 || opts.threads > opts.height) {
+		fprintf(stderr, "%s: thread count must be between 1 and the current height (%d)\n", argv[0], opts.height);
+		return 2;
+	}
 
-	coord_t xmin, xmax, ymin, ymax;
-	init_options(&opts, &xmin, &xmax, &ymin, &ymax);
+	struct view_range view;
+	init_options(&opts, &view);
 
 	struct thread_data *threads = calloc(opts.threads, sizeof(struct thread_data));
 	int i; for (i=0; i<opts.threads; ++i) {
 		threads[i].flags = THREAD_ORDER_FLAGS(i);
 		threads[i].index = i;
 		threads[i].opts = &opts;
-		threads[i].xmin = xmin;
-		threads[i].xmax = xmax;
-		threads[i].ymin = ymin;
-		threads[i].ymax = ymax;
+		threads[i].view.xmin = view.xmin;
+		threads[i].view.xmax = view.xmax;
+		threads[i].view.ymin = view.ymin;
+		threads[i].view.ymax = view.ymax;
 		pthread_create(&threads[i].thread, NULL, thread_start, &threads[i]);
 	}
 
@@ -250,7 +253,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	generate_fractal(sfc, &opts, xmin, xmax, ymin, ymax, threads);
+	generate_fractal(sfc, &opts, &view, threads);
 	SDL_UpdateWindowSurface(win);
 
 	SDL_Event event;
@@ -264,15 +267,15 @@ int main(int argc, char *argv[])
 				quit = 1;
 			} else if (event.type == SDL_MOUSEBUTTONDOWN) {
 				if (event.button.button == SDL_BUTTON_LEFT) {
-					coord_t xx = map(event.button.x, 0, opts.width-1, xmin, xmax);
-					coord_t yy = map(event.button.y, opts.height-1, 0, ymin, ymax);
-					xmin = (xmin + xx) / 2;
-					xmax = (xx + xmax) / 2;
-					ymin = (ymin + yy) / 2;
-					ymax = (yy + ymax) / 2;
+					coord_t xx = map(event.button.x, 0, opts.width-1, view.xmin, view.xmax);
+					coord_t yy = map(event.button.y, opts.height-1, 0, view.ymin, view.ymax);
+					view.xmin = (view.xmin + xx) / 2;
+					view.xmax = (xx + view.xmax) / 2;
+					view.ymin = (view.ymin + yy) / 2;
+					view.ymax = (yy + view.ymax) / 2;
 					update_view = 1;
 				} else if (event.button.button == SDL_BUTTON_RIGHT) {
-					init_options(&opts, &xmin, &xmax, &ymin, &ymax);
+					init_options(&opts, &view);
 					update_view = 1;
 				}
 			} else if (event.type == SDL_KEYDOWN) {
@@ -295,10 +298,10 @@ int main(int argc, char *argv[])
 						fprintf(stderr, "Error saving %s: %s\n", filename, SDL_GetError());
 					}
 				} else if (event.key.keysym.sym == SDLK_c) {
-					printf("Xmin = % 2.20Lf\n", xmin);
-					printf("Xmax = % 2.20Lf\n", xmax);
-					printf("Ymin = % 2.20Lf\n", ymin);
-					printf("Ymax = % 2.20Lf\n\n", ymax);
+					printf("Xmin = % 2.20Lf\n", view.xmin);
+					printf("Xmax = % 2.20Lf\n", view.xmax);
+					printf("Ymin = % 2.20Lf\n", view.ymin);
+					printf("Ymax = % 2.20Lf\n\n", view.ymax);
 					printf("Iter = %d\n", opts.iterations);
 				} else if (event.key.keysym.sym == SDLK_i) {
 					opts.iterations += DEFAULT_ITER_COUNT;
@@ -317,7 +320,7 @@ int main(int argc, char *argv[])
 					rect.h = opts.height;
 					SDL_FillRect(sfc, &rect, red);
 				}
-				generate_fractal(sfc, &opts, xmin, xmax, ymin, ymax, threads);
+				generate_fractal(sfc, &opts, &view, threads);
 			}
 		}
         SDL_UpdateWindowSurface(win);
