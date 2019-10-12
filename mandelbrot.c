@@ -88,7 +88,7 @@ void generate_row(int rownum, SDL_Surface *sfc, const struct options *opts, coor
 #define PRINT_THREAD_STATUS(status)
 #endif
 
-void *thread_start(void *arg)
+void *thread_main(void *arg)
 {
 	struct thread_data *td = arg;
 	int middle = td->opts->height / 2;
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
 		threads[i].view.xmax = view.xmax;
 		threads[i].view.ymin = view.ymin;
 		threads[i].view.ymax = view.ymax;
-		pthread_create(&threads[i].thread, NULL, thread_start, &threads[i]);
+		pthread_create(&threads[i].thread, NULL, thread_main, &threads[i]);
 	}
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
