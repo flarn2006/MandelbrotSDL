@@ -12,6 +12,13 @@
 #define THREAD_BUSY 1
 #define THREAD_BEGIN 2
 #define THREAD_EXIT 4
+#define THREAD_REVERSE 8
+#define THREAD_MIDDLE_OUT 16  /* patent pending ;) */
+
+#if (THREAD_REVERSE << 1) != THREAD_MIDDLE_OUT
+#error THREAD_MIDDLE_OUT must be one bit higher than THREAD_REVERSE
+#endif
+#define THREAD_ORDER_FLAGS(n) (((n) & 3) * THREAD_REVERSE)
 
 #define min(a,b) ((a)<(b)?(a):(b))
 #define max(a,b) ((a)>(b)?(a):(b))
@@ -81,10 +88,11 @@ void generate_row(int rownum, SDL_Surface *sfc, const struct options *opts, coor
 void *thread_start(void *arg)
 {
 	struct thread_data *td = arg;
+	int middle = td->opts->height / 2;
 
 	for (;;) {
 		PRINT_THREAD_STATUS("waiting...");
-		while (!td->flags) {
+		while (!(td->flags & (THREAD_BEGIN | THREAD_EXIT))) {
 			pthread_yield();
 		}
 		if (td->flags & THREAD_EXIT)
@@ -94,7 +102,10 @@ void *thread_start(void *arg)
 		td->flags |= THREAD_BUSY;
 
 		PRINT_THREAD_STATUS("working...");
-		int y; for (y=td->index; y<td->opts->height; y+=td->opts->threads) {
+		int i; for (i=td->index; i<td->opts->height; i+=td->opts->threads) {
+			int y = (td->flags & THREAD_REVERSE) ? i : td->opts->height-i;
+			if (td->flags & THREAD_MIDDLE_OUT)
+				y = (y + middle) % td->opts->height;
 			if (td->flags & (THREAD_BEGIN | THREAD_EXIT)) {
 				PRINT_THREAD_STATUS("interrupted!");
 				break;
@@ -104,6 +115,7 @@ void *thread_start(void *arg)
 			}
 		}
 		td->flags &= ~THREAD_BUSY;
+		td->flags ^= THREAD_REVERSE;
 		PRINT_THREAD_STATUS("finished.");
 	}
 
@@ -188,7 +200,7 @@ int main(int argc, char *argv[])
 
 	struct thread_data *threads = calloc(opts.threads, sizeof(struct thread_data));
 	int i; for (i=0; i<opts.threads; ++i) {
-		threads[i].flags = 0;
+		threads[i].flags = THREAD_ORDER_FLAGS(i);
 		threads[i].index = i;
 		threads[i].opts = &opts;
 		threads[i].xmin = xmin;
