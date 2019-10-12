@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <errno.h>
 #include <pthread.h>
@@ -7,12 +8,18 @@
 #define MAX_THREADS 1024  /* It won't actually create this many threads unless the user tells it to. */
 #define DEFAULT_ITER_COUNT 768
 
+#define OPT_CLEAR 1
+#define THREAD_BUSY 1
+#define THREAD_BEGIN 2
+#define THREAD_EXIT 4
+
 #define min(a,b) ((a)<(b)?(a):(b))
 #define max(a,b) ((a)>(b)?(a):(b))
 
 typedef long double coord_t;
 
 struct options {
+	short flags;
 	int width;
 	int height;
 	int iterations;
@@ -22,6 +29,8 @@ struct options {
 };
 
 struct thread_data {
+	short flags;
+	pthread_t thread;
 	int index;
 	SDL_Surface *sfc;
 	const struct options *opts;
@@ -63,34 +72,53 @@ void generate_row(int rownum, SDL_Surface *sfc, const struct options *opts, coor
 	}
 }
 
+#ifdef DEBUG_THREAD_STATUS
+#define PRINT_THREAD_STATUS(status) printf("Thread %d " status "\n", td->index)
+#else
+#define PRINT_THREAD_STATUS(status)
+#endif
+
 void *thread_start(void *arg)
 {
 	struct thread_data *td = arg;
-	int y; for (y=td->index; y<td->opts->height; y+=td->opts->threads) {
-		coord_t yy = map(y, td->opts->height-1, 0, td->ymin, td->ymax);
-		generate_row(y, td->sfc, td->opts, td->xmin, td->xmax, yy);
+
+	for (;;) {
+		PRINT_THREAD_STATUS("waiting...");
+		while (!td->flags) {
+			pthread_yield();
+		}
+		if (td->flags & THREAD_EXIT)
+			break;
+
+		td->flags &= ~THREAD_BEGIN;
+		td->flags |= THREAD_BUSY;
+
+		PRINT_THREAD_STATUS("working...");
+		int y; for (y=td->index; y<td->opts->height; y+=td->opts->threads) {
+			if (td->flags & (THREAD_BEGIN | THREAD_EXIT)) {
+				PRINT_THREAD_STATUS("interrupted!");
+				break;
+			} else {
+				coord_t yy = map(y, td->opts->height-1, 0, td->ymin, td->ymax);
+				generate_row(y, td->sfc, td->opts, td->xmin, td->xmax, yy);
+			}
+		}
+		td->flags &= ~THREAD_BUSY;
+		PRINT_THREAD_STATUS("finished.");
 	}
+
+	PRINT_THREAD_STATUS("exiting.");
 	return NULL;
 }
 
-void generate_fractal(SDL_Surface *sfc, const struct options *opts, coord_t xmin, coord_t xmax, coord_t ymin, coord_t ymax)
+void generate_fractal(SDL_Surface *sfc, const struct options *opts, coord_t xmin, coord_t xmax, coord_t ymin, coord_t ymax, struct thread_data *threads)
 {
-	pthread_t threads[MAX_THREADS];
-	struct thread_data td[MAX_THREADS];
-
 	int i; for (i=0; i<opts->threads; ++i) {
-		td[i].index = i;
-		td[i].sfc = sfc;
-		td[i].opts = opts;
-		td[i].xmin = xmin;
-		td[i].xmax = xmax;
-		td[i].ymin = ymin;
-		td[i].ymax = ymax;
-		pthread_create(&threads[i], NULL, thread_start, &td[i]);
-	}
-	
-	for (i=0; i<opts->threads; ++i) {
-		pthread_join(threads[i], NULL);
+		threads[i].xmin = xmin;
+		threads[i].xmax = xmax;
+		threads[i].ymin = ymin;
+		threads[i].ymax = ymax;
+		threads[i].flags |= THREAD_BEGIN;
 	}
 }
 
@@ -106,13 +134,14 @@ void init_options(struct options *opts, coord_t *xmin, coord_t *xmax, coord_t *y
 int main(int argc, char *argv[])
 {
 	struct options opts;
+	opts.flags = 0;
 	opts.width = 1200;
 	opts.height = 800;
 	opts.threads = 4;
 
 	FILE *palette_file = NULL;
 
-	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:t:")) != -1) {
+	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:t:c")) != -1) {
 		switch (opt) {
 		case 'w':
 			opts.width = atoi(optarg);
@@ -148,7 +177,25 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "%s: thread count must be between 1 and %d\n", argv[0], MAX_THREADS);
 				return 2;
 			}
+			break;
+		case 'c':
+			opts.flags |= OPT_CLEAR;
 		}
+	}
+
+	coord_t xmin, xmax, ymin, ymax;
+	init_options(&opts, &xmin, &xmax, &ymin, &ymax);
+
+	struct thread_data *threads = calloc(opts.threads, sizeof(struct thread_data));
+	int i; for (i=0; i<opts.threads; ++i) {
+		threads[i].flags = 0;
+		threads[i].index = i;
+		threads[i].opts = &opts;
+		threads[i].xmin = xmin;
+		threads[i].xmax = xmax;
+		threads[i].ymin = ymin;
+		threads[i].ymax = ymax;
+		pthread_create(&threads[i].thread, NULL, thread_start, &threads[i]);
 	}
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -163,9 +210,9 @@ int main(int argc, char *argv[])
 	}
 
 	SDL_Surface *sfc = SDL_GetWindowSurface(win);
-
-	coord_t xmin, xmax, ymin, ymax;
-	init_options(&opts, &xmin, &xmax, &ymin, &ymax);
+	for (i=0; i<opts.threads; ++i) {
+		threads[i].sfc = sfc;
+	}
 
 	if (palette_file) {
 		opts.colormap = calloc(opts.iterations, sizeof(Uint32));
@@ -191,7 +238,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	generate_fractal(sfc, &opts, xmin, xmax, ymin, ymax);
+	generate_fractal(sfc, &opts, xmin, xmax, ymin, ymax, threads);
 	SDL_UpdateWindowSurface(win);
 
 	SDL_Event event;
@@ -247,14 +294,29 @@ int main(int argc, char *argv[])
 				}
 			}
 
+			sfc = SDL_GetWindowSurface(win);
+
 			if (update_view) {
-				sfc = SDL_GetWindowSurface(win);
-				generate_fractal(sfc, &opts, xmin, xmax, ymin, ymax);
-				SDL_UpdateWindowSurface(win);
+				if (opts.flags & OPT_CLEAR) {
+					Uint32 red = SDL_MapRGB(sfc->format, 255, 0, 0);
+					SDL_Rect rect;
+					rect.x = rect.y = 0;
+					rect.w = opts.width;
+					rect.h = opts.height;
+					SDL_FillRect(sfc, &rect, red);
+				}
+				generate_fractal(sfc, &opts, xmin, xmax, ymin, ymax, threads);
 			}
 		}
+        SDL_UpdateWindowSurface(win);
 	}
 
+	for (i=0; i<opts.threads; ++i) 
+		threads[i].flags |= THREAD_EXIT;
+	for (i=0; i<opts.threads; ++i)
+		pthread_join(threads[i].thread, NULL);
+
+	free(threads);
 	free(opts.colormap);
 	SDL_DestroyWindow(win);
 	SDL_Quit();
