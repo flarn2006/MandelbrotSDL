@@ -262,8 +262,16 @@ int main(int argc, char *argv[])
 					view.ymin = (view.ymin + yy) / 2;
 					view.ymax = (yy + view.ymax) / 2;
 					update_view = 1;
-				} else if (event.button.button == SDL_BUTTON_RIGHT) {
+				} else if (event.button.button == SDL_BUTTON_MIDDLE) {
 					init_options(&opts, &view);
+					update_view = 1;
+				} else if (event.button.button == SDL_BUTTON_RIGHT) {
+					coord_t xx = map(event.button.x, 0, opts.width-1, view.xmin, view.xmax);
+					coord_t yy = map(event.button.y, opts.height-1, 0, view.ymin, view.ymax);
+					view.xmin = view.xmin * 2 - xx;
+					view.xmax = view.xmax * 2 - xx;
+					view.ymin = view.ymin * 2 - yy;
+					view.ymax = view.ymax * 2 - yy;
 					update_view = 1;
 				}
 			} else if (event.type == SDL_KEYDOWN) {
