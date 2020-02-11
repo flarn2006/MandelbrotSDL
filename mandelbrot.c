@@ -41,6 +41,8 @@ struct thread_data {
 	SDL_Surface *sfc;
 	const struct options *opts;
 	struct view_range view;
+	pthread_cond_t *cond;
+	pthread_mutex_t mutex;
 };
 
 coord_t map(coord_t value, coord_t inputMin, coord_t inputMax, coord_t outputMin, coord_t outputMax)
@@ -88,7 +90,7 @@ void *thread_main(void *arg)
 	for (;;) {
 		PRINT_THREAD_STATUS("waiting...");
 		while (!(td->flags & (THREAD_BEGIN | THREAD_EXIT))) {
-			pthread_yield();
+			pthread_cond_wait(td->cond, &td->mutex);
 		}
 		if (td->flags & THREAD_EXIT)
 			break;
@@ -114,7 +116,7 @@ void *thread_main(void *arg)
 	return NULL;
 }
 
-void generate_fractal(SDL_Surface *sfc, const struct options *opts, struct view_range *view, struct thread_data *threads)
+void generate_fractal(SDL_Surface *sfc, const struct options *opts, struct view_range *view, struct thread_data *threads, pthread_cond_t *cond)
 {
 	int i; for (i=0; i<opts->threads; ++i) {
 		threads[i].view.xmin = view->xmin;
@@ -123,6 +125,7 @@ void generate_fractal(SDL_Surface *sfc, const struct options *opts, struct view_
 		threads[i].view.ymax = view->ymax;
 		threads[i].flags |= THREAD_BEGIN;
 	}
+	pthread_cond_broadcast(cond);
 }
 
 void init_options(struct options *opts, struct view_range *view)
@@ -141,6 +144,8 @@ int main(int argc, char *argv[])
 	opts.width = 1200;
 	opts.height = 800;
 	opts.threads = 4;
+
+	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 	FILE *palette_file = NULL;
 
@@ -198,6 +203,8 @@ int main(int argc, char *argv[])
 		threads[i].view.xmax = view.xmax;
 		threads[i].view.ymin = view.ymin;
 		threads[i].view.ymax = view.ymax;
+		threads[i].cond = &cond;
+		threads[i].mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 		pthread_create(&threads[i].thread, NULL, thread_main, &threads[i]);
 	}
 
@@ -241,7 +248,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	generate_fractal(sfc, &opts, &view, threads);
+	generate_fractal(sfc, &opts, &view, threads, &cond);
 	SDL_UpdateWindowSurface(win);
 
 	SDL_Event event;
@@ -316,7 +323,7 @@ int main(int argc, char *argv[])
 					rect.h = opts.height;
 					SDL_FillRect(sfc, &rect, color);
 				}
-				generate_fractal(sfc, &opts, &view, threads);
+				generate_fractal(sfc, &opts, &view, threads, &cond);
 			}
 		}
         SDL_UpdateWindowSurface(win);
@@ -324,8 +331,15 @@ int main(int argc, char *argv[])
 
 	for (i=0; i<opts.threads; ++i) 
 		threads[i].flags |= THREAD_EXIT;
-	for (i=0; i<opts.threads; ++i)
+	
+	pthread_cond_broadcast(&cond);
+
+	for (i=0; i<opts.threads; ++i) {
 		pthread_join(threads[i].thread, NULL);
+		pthread_mutex_destroy(&threads[i].mutex);
+	}
+	
+	pthread_cond_destroy(&cond);
 
 	free(threads);
 	free(opts.colormap);
