@@ -379,15 +379,22 @@ int main(int argc, char *argv[])
 							png_init_io(png, fp);
 							png_set_IHDR(png, info, opts.width, opts.height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 							
-							struct png_text_struct text;
-							text.compression = PNG_TEXT_COMPRESSION_NONE;
-							text.key = FRACTAL_INFO_TEXT_KEY;
-							text.lang = NULL;
-							text.lang_key = NULL;
+							struct png_text_struct text[2];
+							text[0].compression = PNG_TEXT_COMPRESSION_NONE;
+							text[0].key = "Software";
+							text[0].lang = NULL;
+							text[0].lang_key = NULL;
+							text[0].text = "MandelbrotSDL by flarn2006";
+							text[0].text_length = strlen(text[0].text);
+
+							text[1].compression = PNG_TEXT_COMPRESSION_NONE;
+							text[1].key = FRACTAL_INFO_TEXT_KEY;
+							text[1].lang = NULL;
+							text[1].lang_key = NULL;
 							char textbuf[128];
-							text.text_length = snprintf(textbuf, sizeof(textbuf), "%.20Lg,%.20Lg,%.20Lg,%.20Lg,%d", view.xmin, view.xmax, view.ymin, view.ymax, opts.iterations);
-							text.text = textbuf;
-							png_set_text(png, info, &text, 1);
+							text[1].text_length = snprintf(textbuf, sizeof(textbuf), "%.20Lg,%.20Lg,%.20Lg,%.20Lg,%d", view.xmin, view.xmax, view.ymin, view.ymax, opts.iterations);
+							text[1].text = textbuf;
+							png_set_text(png, info, text, 2);
 
 							pngsfc = SDL_CreateRGBSurface(0, opts.width, opts.height, 24, 0xFF, 0xFF00, 0xFF0000, 0);
 							SDL_BlitSurface(sfc, NULL, pngsfc, NULL);
