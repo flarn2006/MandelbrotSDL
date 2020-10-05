@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <getopt.h>
 #include <SDL2/SDL.h>
+#include <png.h>
 
 #define DEFAULT_ITER_COUNT 768
 
@@ -256,6 +257,7 @@ int main(int argc, char *argv[])
 	int quit = 0; while (!quit) {
 		while (SDL_PollEvent(&event) != 0) {
 			int update_view = 0;
+			sfc = SDL_GetWindowSurface(win);
 
 			if (event.type == SDL_QUIT) {
 				putchar('\n');
@@ -286,7 +288,7 @@ int main(int argc, char *argv[])
 					char filename[32];
 					int found = 0;
 					while (!found) {
-						snprintf(filename, 16, "mandel%u.bmp", screenshot_file_num);
+						snprintf(filename, 16, "mandel%u.png", screenshot_file_num);
 						FILE *fp = fopen(filename, "r");
 						if (fp) {
 							fclose(fp);
@@ -295,10 +297,48 @@ int main(int argc, char *argv[])
 						}
 						++screenshot_file_num;
 					}
-					if (SDL_SaveBMP(sfc, filename) == 0) {
-						printf("Saved screenshot to %s\n", filename);
+
+					FILE *fp = fopen(filename, "w");
+					if (fp) {
+						SDL_Surface *pngsfc = NULL;
+						png_bytepp pngrows = NULL;
+
+						png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+                        png_infop info = png_create_info_struct(png);
+						if (setjmp(png_jmpbuf(png))) {
+							fprintf(stderr, "Error creating PNG\n");
+						} else {
+							png_init_io(png, fp);
+							png_set_IHDR(png, info, opts.width, opts.height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+							
+							struct png_text_struct text;
+							text.compression = PNG_TEXT_COMPRESSION_NONE;
+							text.key = "FractalInfo";
+							text.lang = NULL;
+							text.lang_key = NULL;
+							char textbuf[128];
+							text.text_length = snprintf(textbuf, sizeof(textbuf), "%.20Lg,%.20Lg,%.20Lg,%.20Lg,%d", view.xmin, view.xmax, view.ymin, view.ymax, opts.iterations);
+							text.text = textbuf;
+							png_set_text(png, info, &text, 1);
+
+							pngsfc = SDL_CreateRGBSurface(0, opts.width, opts.height, 24, 0xFF, 0xFF00, 0xFF0000, 0);
+							SDL_BlitSurface(sfc, NULL, pngsfc, NULL);
+							pngrows = calloc(opts.height, sizeof(png_const_bytep));
+							for (i=0; i<opts.height; ++i) {
+								pngrows[i] = pngsfc->pixels + 3 * opts.width * i;
+							}
+							png_set_rows(png, info, pngrows);
+
+							png_write_png(png, info, 0, NULL);
+							printf("Saved screenshot to %s\n", filename);
+						}
+
+						fclose(fp);
+						png_destroy_write_struct(&png, &info);
+						if (pngrows) free(pngrows);
+						if (pngsfc) SDL_FreeSurface(pngsfc);
 					} else {
-						fprintf(stderr, "Error saving %s: %s\n", filename, SDL_GetError());
+						perror(filename);
 					}
 				} else if (event.key.keysym.sym == SDLK_c) {
 					printf("Xmin = % 2.20Lf\n", view.xmin);
@@ -311,8 +351,6 @@ int main(int argc, char *argv[])
 					update_view = 1;
 				}
 			}
-
-			sfc = SDL_GetWindowSurface(win);
 
 			if (update_view) {
 				if (opts.flags & OPT_CLEAR) {
