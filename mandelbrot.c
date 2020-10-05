@@ -132,6 +132,24 @@ void generate_fractal(SDL_Surface *sfc, const struct options *opts, struct view_
 	pthread_cond_broadcast(cond);
 }
 
+int get_next_filename(char *filename, size_t filename_size, const char *format)
+{
+	int screenshot_file_num = 0;
+	int found = 0;
+	int snprintf_result;
+	while (!found) {
+		snprintf_result = snprintf(filename, filename_size, format, screenshot_file_num);
+		FILE *fp = fopen(filename, "r");
+		if (fp) {
+			fclose(fp);
+		} else if (errno == ENOENT) {
+			found = 1;
+		}
+		++screenshot_file_num;
+	}
+	return snprintf_result;
+}
+
 int init_from_png(const char *filename, struct options *opts, struct view_range *view)
 {
 	FILE *fp = fopen(filename, "rb");
@@ -321,7 +339,6 @@ int main(int argc, char *argv[])
 	SDL_UpdateWindowSurface(win);
 
 	SDL_Event event;
-	int screenshot_file_num = 0;
 	int quit = 0; while (!quit) {
 		while (SDL_PollEvent(&event) != 0) {
 			int update_view = 0;
@@ -354,18 +371,7 @@ int main(int argc, char *argv[])
 			} else if (event.type == SDL_KEYDOWN) {
 				if (event.key.keysym.sym == SDLK_s) {
 					char filename[32];
-					int found = 0;
-					while (!found) {
-						snprintf(filename, 16, "mandel%u.png", screenshot_file_num);
-						FILE *fp = fopen(filename, "r");
-						if (fp) {
-							fclose(fp);
-						} else if (errno == ENOENT) {
-							found = 1;
-						}
-						++screenshot_file_num;
-					}
-
+					get_next_filename(filename, sizeof(filename), "mandel%u.png");
 					FILE *fp = fopen(filename, "w");
 					if (fp) {
 						SDL_Surface *pngsfc = NULL;
@@ -374,10 +380,23 @@ int main(int argc, char *argv[])
 						png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
                         png_infop info = png_create_info_struct(png);
 						if (setjmp(png_jmpbuf(png))) {
-							fprintf(stderr, "Error creating PNG\n");
+							fclose(fp);
+							fprintf(stderr, "Error creating PNG; falling back to BMP format.\n");
+							remove(filename);
+
+							get_next_filename(filename, sizeof(filename), "mandel%u.bmp");
+							fp = fopen(filename, "wb");
+							if (fp)
+								SDL_SaveBMP_RW(sfc, SDL_RWFromFP(fp, SDL_FALSE), 0);
+							else
+								perror(filename);
 						} else {
 							png_init_io(png, fp);
 							png_set_IHDR(png, info, opts.width, opts.height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+							#ifdef TEST_PNG_ERROR
+							png_error(png, "Fake error for testing");
+							#endif
 							
 							struct png_text_struct text[2];
 							text[0].compression = PNG_TEXT_COMPRESSION_NONE;
@@ -405,10 +424,10 @@ int main(int argc, char *argv[])
 							png_set_rows(png, info, pngrows);
 
 							png_write_png(png, info, 0, NULL);
-							printf("Saved screenshot to %s\n", filename);
 						}
 
-						fclose(fp);
+						printf("Saved screenshot to %s\n", filename);
+						if (fp) fclose(fp);
 						png_destroy_write_struct(&png, &info);
 						if (pngrows) free(pngrows);
 						if (pngsfc) SDL_FreeSurface(pngsfc);
