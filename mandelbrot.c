@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #include <pthread.h>
 #include <getopt.h>
@@ -15,6 +16,8 @@
 
 #define min(a,b) ((a)<(b)?(a):(b))
 #define max(a,b) ((a)>(b)?(a):(b))
+
+#define FRACTAL_INFO_TEXT_KEY "FractalInfo"
 
 typedef long double coord_t;
 
@@ -129,6 +132,62 @@ void generate_fractal(SDL_Surface *sfc, const struct options *opts, struct view_
 	pthread_cond_broadcast(cond);
 }
 
+int init_from_png(const char *filename, struct options *opts, struct view_range *view)
+{
+	FILE *fp = fopen(filename, "rb");
+	if (!fp) {
+		perror(filename);
+		return 1;
+	}
+
+	int retval = 0;
+	png_structrp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	png_inforp info = png_create_info_struct(png);
+	if (setjmp(png_jmpbuf(png))) {
+		fprintf(stderr, "Error reading PNG\n");
+		retval = 1;
+		goto init_from_png_exit;
+	}
+
+	unsigned char sig[8];
+	if (fread(sig, 1, 8, fp) != 8 || !png_check_sig(sig, 8)) {
+		fprintf(stderr, "PNG signature not found; %s does not appear to be a PNG file.\n", filename);
+		retval = 1;
+	} else {
+		png_set_sig_bytes(png, 8);
+	}
+
+	png_init_io(png, fp);
+	png_read_info(png, info);
+	png_textp text;
+	int count = png_get_text(png, info, &text, NULL);
+    int iterations;
+	int found = 0;
+	for (int i=0; i<count; ++i) {
+		if (!strcmp(text[i].key, FRACTAL_INFO_TEXT_KEY)) {
+			found = 1;
+			if (sscanf(text[i].text, "%Lg,%Lg,%Lg,%Lg,%d", &view->xmin, &view->xmax, &view->ymin, &view->ymax, &iterations) < 5) {
+				fprintf(stderr, "Invalid " FRACTAL_INFO_TEXT_KEY " format in %s.\n", filename);
+				retval = 1;
+				goto init_from_png_exit;
+			} else if (opts->iterations == -1) {
+				opts->iterations = iterations;
+			}
+			break;
+		}
+	}
+	if (!found) {
+		fprintf(stderr, "%s does not contain fractal information.\n", filename);
+		retval = 1;
+		goto init_from_png_exit;
+	}
+
+init_from_png_exit:
+	png_destroy_read_struct(&png, &info, NULL);
+	fclose(fp);
+	return retval;
+}
+
 void init_options(struct options *opts, struct view_range *view)
 {
 	opts->iterations = DEFAULT_ITER_COUNT;
@@ -152,8 +211,9 @@ int main(int argc, char *argv[])
 
 	struct view_range view;
 	init_options(&opts, &view);
+	opts.iterations = -1;  /* in case there's a "-r" option given */
 
-	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:t:c")) != -1) {
+	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:r:t:c")) != -1) {
 		switch (opt) {
 		case 'w':
 			opts.width = atoi(optarg);
@@ -183,6 +243,12 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 			break;
+		case 'r': {
+			int status = init_from_png(optarg, &opts, &view);
+			if (status)
+				return status;
+			break;
+		}
 		case 't':
 			opts.threads = atoi(optarg);
 			break;
@@ -190,6 +256,8 @@ int main(int argc, char *argv[])
 			opts.flags |= OPT_CLEAR;
 		}
 	}
+	if (opts.iterations == -1)
+		opts.iterations = DEFAULT_ITER_COUNT;
 	if (opts.threads < 1 || opts.threads > opts.height) {
 		fprintf(stderr, "%s: thread count must be between 1 and the current height (%d)\n", argv[0], opts.height);
 		return 2;
@@ -313,7 +381,7 @@ int main(int argc, char *argv[])
 							
 							struct png_text_struct text;
 							text.compression = PNG_TEXT_COMPRESSION_NONE;
-							text.key = "FractalInfo";
+							text.key = FRACTAL_INFO_TEXT_KEY;
 							text.lang = NULL;
 							text.lang_key = NULL;
 							char textbuf[128];
