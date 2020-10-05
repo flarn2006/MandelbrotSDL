@@ -23,6 +23,7 @@
 #define min(a,b) ((a)<(b)?(a):(b))
 #define max(a,b) ((a)>(b)?(a):(b))
 
+#define SOFTWARE_NAME_FOR_METADATA "MandelbrotSDL by flarn2006"
 #define FRACTAL_INFO_TEXT_KEY "FractalInfo"
 #define MSG_SAVED_SCREENSHOT "Saved screenshot to %s\n"
 #define SCREENSHOT_NAME_FMT_WO_EXT "mandel%u"
@@ -420,7 +421,7 @@ int main(int argc, char *argv[])
 							text[0].key = "Software";
 							text[0].lang = NULL;
 							text[0].lang_key = NULL;
-							text[0].text = "MandelbrotSDL by flarn2006";
+							text[0].text = SOFTWARE_NAME_FOR_METADATA;
 							text[0].text_length = strlen(text[0].text);
 
 							text[1].compression = PNG_TEXT_COMPRESSION_zTXt;
