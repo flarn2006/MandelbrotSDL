@@ -5,7 +5,13 @@
 #include <pthread.h>
 #include <getopt.h>
 #include <SDL2/SDL.h>
+
+#ifdef NO_LIBPNG
+#define LIBPNG_GETOPT ""
+#else
+#define LIBPNG_GETOPT "r:"
 #include <png.h>
+#endif
 
 #define DEFAULT_ITER_COUNT 768
 
@@ -18,6 +24,8 @@
 #define max(a,b) ((a)>(b)?(a):(b))
 
 #define FRACTAL_INFO_TEXT_KEY "FractalInfo"
+#define MSG_SAVED_SCREENSHOT "Saved screenshot to %s\n"
+#define SCREENSHOT_NAME_FMT_WO_EXT "mandel%u"
 
 typedef long double coord_t;
 
@@ -150,6 +158,7 @@ int get_next_filename(char *filename, size_t filename_size, const char *format)
 	return snprintf_result;
 }
 
+#ifndef NO_LIBPNG
 int init_from_png(const char *filename, struct options *opts, struct view_range *view)
 {
 	FILE *fp = fopen(filename, "rb");
@@ -205,6 +214,7 @@ init_from_png_exit:
 	fclose(fp);
 	return retval;
 }
+#endif
 
 void init_options(struct options *opts, struct view_range *view)
 {
@@ -231,7 +241,7 @@ int main(int argc, char *argv[])
 	init_options(&opts, &view);
 	opts.iterations = -1;  /* in case there's a "-r" option given */
 
-	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:r:t:c")) != -1) {
+	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:t:c" LIBPNG_GETOPT)) != -1) {
 		switch (opt) {
 		case 'w':
 			opts.width = atoi(optarg);
@@ -261,12 +271,14 @@ int main(int argc, char *argv[])
 				return 1;
 			}
 			break;
+#ifndef NO_LIBPNG
 		case 'r': {
 			int status = init_from_png(optarg, &opts, &view);
 			if (status)
 				return status;
 			break;
 		}
+#endif
 		case 't':
 			opts.threads = atoi(optarg);
 			break;
@@ -371,7 +383,9 @@ int main(int argc, char *argv[])
 			} else if (event.type == SDL_KEYDOWN) {
 				if (event.key.keysym.sym == SDLK_s) {
 					char filename[32];
-					get_next_filename(filename, sizeof(filename), "mandel%u.png");
+#ifndef NO_LIBPNG
+					int save_successful = 0;
+					get_next_filename(filename, sizeof(filename), SCREENSHOT_NAME_FMT_WO_EXT ".png");
 					FILE *fp = fopen(filename, "w");
 					if (fp) {
 						SDL_Surface *pngsfc = NULL;
@@ -383,13 +397,16 @@ int main(int argc, char *argv[])
 							fclose(fp);
 							fprintf(stderr, "Error creating PNG; falling back to BMP format.\n");
 							remove(filename);
-
-							get_next_filename(filename, sizeof(filename), "mandel%u.bmp");
+							get_next_filename(filename, sizeof(filename), SCREENSHOT_NAME_FMT_WO_EXT ".bmp");
 							fp = fopen(filename, "wb");
-							if (fp)
-								SDL_SaveBMP_RW(sfc, SDL_RWFromFP(fp, SDL_FALSE), 0);
-							else
+							if (fp) {
+								if (SDL_SaveBMP_RW(sfc, SDL_RWFromFP(fp, SDL_FALSE), 0) == 0)
+									save_successful = 1;
+								else
+									perror(filename);
+							} else {
 								perror(filename);
+							}
 						} else {
 							png_init_io(png, fp);
 							png_set_IHDR(png, info, opts.width, opts.height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
@@ -424,9 +441,10 @@ int main(int argc, char *argv[])
 							png_set_rows(png, info, pngrows);
 
 							png_write_png(png, info, 0, NULL);
+							save_successful = 1;
 						}
 
-						printf("Saved screenshot to %s\n", filename);
+						if (save_successful) printf(MSG_SAVED_SCREENSHOT, filename);
 						if (fp) fclose(fp);
 						png_destroy_write_struct(&png, &info);
 						if (pngrows) free(pngrows);
@@ -434,6 +452,13 @@ int main(int argc, char *argv[])
 					} else {
 						perror(filename);
 					}
+#else
+					get_next_filename(filename, sizeof(filename), SCREENSHOT_NAME_FMT_WO_EXT ".bmp");
+					if (SDL_SaveBMP(sfc, filename) == 0)
+						printf(MSG_SAVED_SCREENSHOT, filename);
+					else
+						perror(filename);
+#endif
 				} else if (event.key.keysym.sym == SDLK_c) {
 					printf("Xmin = % 2.20Lf\n", view.xmin);
 					printf("Xmax = % 2.20Lf\n", view.xmax);
