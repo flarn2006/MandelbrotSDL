@@ -13,6 +13,13 @@
 #include <png.h>
 #endif
 
+#ifdef __linux__
+#define USE_NPROCS
+#endif
+#ifdef USE_NPROCS
+#include <sys/sysinfo.h>
+#endif
+
 #define DEFAULT_ITER_COUNT 768
 
 #define OPT_CLEAR 1
@@ -235,7 +242,11 @@ int main(int argc, char *argv[])
 	opts.flags = 0;
 	opts.width = 1200;
 	opts.height = 800;
+#ifdef USE_NPROCS
+	opts.threads = get_nprocs_conf();
+#else
 	opts.threads = 4;
+#endif
 
 	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
