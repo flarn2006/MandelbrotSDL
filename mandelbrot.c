@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
 							text[0].text = "MandelbrotSDL by flarn2006";
 							text[0].text_length = strlen(text[0].text);
 
-							text[1].compression = PNG_TEXT_COMPRESSION_NONE;
+							text[1].compression = PNG_TEXT_COMPRESSION_zTXt;
 							text[1].key = FRACTAL_INFO_TEXT_KEY;
 							text[1].lang = NULL;
 							text[1].lang_key = NULL;
