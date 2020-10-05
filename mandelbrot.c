@@ -228,6 +228,9 @@ void init_options(struct options *opts, struct view_range *view)
 
 int main(int argc, char *argv[])
 {
+#ifdef TEST_PNG_ERROR
+	fprintf(stderr, "WARNING: PNG export is deliberately broken in this build due to #define TEST_PNG_ERROR.\n");
+#endif
 	struct options opts;
 	opts.flags = 0;
 	opts.width = 1200;
