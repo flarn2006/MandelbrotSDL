@@ -394,9 +394,9 @@ int main(int argc, char *argv[])
 							png_init_io(png, fp);
 							png_set_IHDR(png, info, opts.width, opts.height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
-							#ifdef TEST_PNG_ERROR
+#ifdef TEST_PNG_ERROR
 							png_error(png, "Fake error for testing");
-							#endif
+#endif
 							
 							struct png_text_struct text[2];
 							text[0].compression = PNG_TEXT_COMPRESSION_NONE;
