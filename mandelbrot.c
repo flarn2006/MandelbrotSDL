@@ -34,6 +34,7 @@
 #define FRACTAL_INFO_TEXT_KEY "FractalInfo"
 #define MSG_SAVED_SCREENSHOT "Saved screenshot to %s\n"
 #define SCREENSHOT_NAME_FMT_WO_EXT "mandel%u"
+#define DEFAULT_PALETTE_FILENAME "default.pal"
 
 typedef long double coord_t;
 
@@ -250,7 +251,8 @@ int main(int argc, char *argv[])
 
 	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-	FILE *palette_file = NULL;
+	FILE *palette_file = fopen(DEFAULT_PALETTE_FILENAME, "rb");
+	/* If the open failed, we just need palette_file = NULL. So no further check is needed here. */
 
 	struct view_range view;
 	init_options(&opts, &view);
