@@ -280,6 +280,8 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'p':
+			if (palette_file)
+				fclose(palette_file);
 			palette_file = fopen(optarg, "rb");
 			if (!palette_file) {
 				perror(optarg);
