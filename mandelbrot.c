@@ -195,7 +195,7 @@ int init_from_png(const char *filename, struct options *opts, struct view_range 
 	}
 
 	png_init_io(png, fp);
-	png_read_info(png, info);
+	png_read_png(png, info, 0, NULL);
 	png_textp text;
 	int count = png_get_text(png, info, &text, NULL);
     int iterations;
