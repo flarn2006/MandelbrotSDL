@@ -209,8 +209,13 @@ int init_from_png(const char *filename, struct options *opts, struct view_range 
 				fprintf(stderr, "Invalid " FRACTAL_INFO_TEXT_KEY " format in %s.\n", filename);
 				retval = 1;
 				goto init_from_png_exit;
-			} else if (opts->iterations == -1) {
-				opts->iterations = iterations;
+			} else {
+				if (opts->width == -1 && opts->height == -1) {
+					opts->width = png_get_image_width(png, info);
+					opts->height = png_get_image_height(png, info);
+				}
+				if (opts->iterations == -1) 
+					opts->iterations = iterations;
 			}
 			break;
 		}
