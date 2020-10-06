@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
 	init_options(&opts, &view);
 	opts.iterations = -1;  /* in case there's a "-r" option given */
 
-	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:t:c" LIBPNG_GETOPT)) != -1) {
+	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:Pt:c" LIBPNG_GETOPT)) != -1) {
 		switch (opt) {
 		case 'w':
 			opts.width = atoi(optarg);
@@ -301,6 +301,11 @@ int main(int argc, char *argv[])
 				perror(optarg);
 				return 1;
 			}
+			break;
+		case 'P':
+			if (palette_file)
+				fclose(palette_file);
+			palette_file = NULL;
 			break;
 #ifndef NO_LIBPNG
 		case 'r': {
