@@ -20,6 +20,8 @@
 #include <sys/sysinfo.h>
 #endif
 
+#define DEFAULT_WIDTH 1200
+#define DEFAULT_HEIGHT 800
 #define DEFAULT_ITER_COUNT 768
 
 #define OPT_CLEAR 1
@@ -242,8 +244,8 @@ int main(int argc, char *argv[])
 #endif
 	struct options opts;
 	opts.flags = 0;
-	opts.width = 1200;
-	opts.height = 800;
+	opts.width = -1;
+	opts.height = -1;
 #ifdef USE_NPROCS
 	opts.threads = get_nprocs_conf();
 #else
@@ -307,6 +309,21 @@ int main(int argc, char *argv[])
 			break;
 		case 'c':
 			opts.flags |= OPT_CLEAR;
+		}
+	}
+	if (opts.width == -1) {
+		if (opts.height == -1) {
+			opts.width = DEFAULT_WIDTH;
+			opts.height = DEFAULT_HEIGHT;
+		} else {
+			opts.width = opts.height + opts.height / 2;
+		}
+	} else if (opts.height == -1) {
+		if (opts.width == -1) {
+			opts.width = DEFAULT_WIDTH;
+			opts.height = DEFAULT_HEIGHT;
+		} else {
+			opts.height = opts.width - opts.width / 3;
 		}
 	}
 	if (opts.iterations == -1)
