@@ -187,6 +187,7 @@ int init_from_png(const char *filename, struct options *opts, struct view_range 
 		retval = 1;
 		goto init_from_png_exit;
 	}
+	png_set_crc_action(png, PNG_CRC_WARN_USE, PNG_CRC_WARN_USE);
 
 	unsigned char sig[8];
 	if (fread(sig, 1, 8, fp) != 8 || !png_check_sig(sig, 8)) {
