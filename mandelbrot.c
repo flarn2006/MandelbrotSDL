@@ -18,6 +18,8 @@
 #endif
 #ifdef USE_NPROCS
 #include <sys/sysinfo.h>
+#else
+#define DEFAULT_THREADS 4
 #endif
 
 #define DEFAULT_WIDTH 1200
@@ -243,11 +245,40 @@ void init_options(struct options *opts, struct view_range *view)
 	view->ymax = -1.0;
 }
 
+#ifdef NO_LIBPNG
+#define LIBPNG_USAGE ""
+#else
+#define LIBPNG_USAGE " [-r IMAGE.png]"
+#endif
+
+#ifdef USE_NPROCS
+#define THREAD_OPT_HELP_DEFAULT_IS "the number of logical CPU cores in your PC (%d)"
+#else
+#define THREAD_OPT_HELP_DEFAULT_IS "%d"
+#endif
+
+void print_usage(FILE *fp, const char *argv0, int default_threads)
+{
+	fprintf(fp, "Usage: %s [-cP] [-w WIDTH] [-h HEIGHT] [-i ITERATIONS] [-p FILENAME] [-t THREADS]" LIBPNG_USAGE "\n\n", argv0);
+	fprintf(fp, " -w\tSets the width of the window. If absent, default size is %dx%d, or a 3:2 ratio with HEIGHT.\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
+	fprintf(fp, " -h\tSets the height of the window. If absent, the same rules will be followed as with WIDTH.\n");
+	fprintf(fp, " -i\tSets the number of iterations that will initially be used. Default is %d.\n", DEFAULT_ITER_COUNT);
+	fprintf(fp, " -p\tLoads a palette from a file. The format is raw 8-bit RR GG BB [...]. Default is '" DEFAULT_PALETTE_FILENAME_1 "' or '" DEFAULT_PALETTE_FILENAME_2 "', if present.\n");
+	fprintf(fp, " -P\tForces the use of the built-in (blue) palette, even if a palette exists with one of the default filenames.\n");
+	fprintf(fp, " -c\tClear the window before redrawing.\n");
+	fprintf(fp, " -t\tSets the number of threads to use. The default is " THREAD_OPT_HELP_DEFAULT_IS ".\n", default_threads);
+#ifndef NO_LIBPNG
+	fprintf(fp, " -r\tObtain parameters from a PNG image previously saved using the 'S' key. '-w', '-h', and '-i' take precedence.\n");
+#endif
+	fputc('\n', fp);
+}
+
 int main(int argc, char *argv[])
 {
 #ifdef TEST_PNG_ERROR
 	fprintf(stderr, "WARNING: PNG export is deliberately broken in this build due to #define TEST_PNG_ERROR.\n");
 #endif
+
 	struct options opts;
 	opts.flags = 0;
 	opts.width = -1;
@@ -255,8 +286,13 @@ int main(int argc, char *argv[])
 #ifdef USE_NPROCS
 	opts.threads = get_nprocs_conf();
 #else
-	opts.threads = 4;
+	opts.threads = DEFAULT_THREADS;
 #endif
+	
+	if (argc >= 2 && strcmp(argv[1], "--help") == 0) {
+		print_usage(stdout, argv[0], opts.threads);
+		return 0;
+	}
 
 	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
@@ -320,6 +356,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'c':
 			opts.flags |= OPT_CLEAR;
+		case '?':
+			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+			return 255;
 		}
 	}
 	if (opts.width == -1) {
