@@ -356,6 +356,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'c':
 			opts.flags |= OPT_CLEAR;
+			break;
 		case '?':
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return 255;
