@@ -42,6 +42,7 @@
 #define DEFAULT_PALETTE_FILENAME_2 "default.pal"
 
 typedef long double coord_t;
+#define CTFMT "L" /* for printf/scanf of coord_t: "%" CTFMT "f" (or "g") */
 
 struct options {
 	short flags;
@@ -208,7 +209,7 @@ int init_from_png(const char *filename, struct options *opts, struct view_range 
 	for (int i=0; i<count; ++i) {
 		if (!strcmp(text[i].key, FRACTAL_INFO_TEXT_KEY)) {
 			found = 1;
-			if (sscanf(text[i].text, "%Lg,%Lg,%Lg,%Lg,%d", &view->xmin, &view->xmax, &view->ymin, &view->ymax, &iterations) < 5) {
+			if (sscanf(text[i].text, "%" CTFMT "g,%" CTFMT "g,%" CTFMT "g,%" CTFMT "g,%d", &view->xmin, &view->xmax, &view->ymin, &view->ymax, &iterations) < 5) {
 				fprintf(stderr, "Invalid " FRACTAL_INFO_TEXT_KEY " format in %s.\n", filename);
 				retval = 1;
 				goto init_from_png_exit;
@@ -519,7 +520,7 @@ int main(int argc, char *argv[])
 							text[1].lang = NULL;
 							text[1].lang_key = NULL;
 							char textbuf[128];
-							text[1].text_length = snprintf(textbuf, sizeof(textbuf), "%.20Lg,%.20Lg,%.20Lg,%.20Lg,%d", view.xmin, view.xmax, view.ymin, view.ymax, opts.iterations);
+							text[1].text_length = snprintf(textbuf, sizeof(textbuf), "%.20" CTFMT "g,%.20" CTFMT "g,%.20" CTFMT "g,%.20" CTFMT "g,%d", view.xmin, view.xmax, view.ymin, view.ymax, opts.iterations);
 							text[1].text = textbuf;
 							png_set_text(png, info, text, 2);
 
@@ -551,10 +552,10 @@ int main(int argc, char *argv[])
 						perror(filename);
 #endif
 				} else if (event.key.keysym.sym == SDLK_c) {
-					printf("Xmin = % 2.20Lf\n", view.xmin);
-					printf("Xmax = % 2.20Lf\n", view.xmax);
-					printf("Ymin = % 2.20Lf\n", view.ymin);
-					printf("Ymax = % 2.20Lf\n\n", view.ymax);
+					printf("Xmin = % 2.20" CTFMT "f\n", view.xmin);
+					printf("Xmax = % 2.20" CTFMT "f\n", view.xmax);
+					printf("Ymin = % 2.20" CTFMT "f\n", view.ymin);
+					printf("Ymax = % 2.20" CTFMT "f\n\n", view.ymax);
 					printf("Iter = %d\n", opts.iterations);
 				} else if (event.key.keysym.sym == SDLK_i) {
 					opts.iterations += DEFAULT_ITER_COUNT;
