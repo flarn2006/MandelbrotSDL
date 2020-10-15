@@ -27,6 +27,7 @@
 #define DEFAULT_ITER_COUNT 768
 
 #define OPT_CLEAR 1
+#define OPT_USER_Z0 2
 #define THREAD_BUSY 1
 #define THREAD_BEGIN 2
 #define THREAD_EXIT 4
@@ -206,11 +207,13 @@ int init_from_png(const char *filename, struct options *opts, struct view_range 
 	png_textp text;
 	int count = png_get_text(png, info, &text, NULL);
     int iterations;
+	coord_t z0r, z0i;
 	int found = 0;
 	for (int i=0; i<count; ++i) {
 		if (!strcmp(text[i].key, FRACTAL_INFO_TEXT_KEY)) {
 			found = 1;
-			if (sscanf(text[i].text, "%" CTFMT "g,%" CTFMT "g,%" CTFMT "g,%" CTFMT "g,%d", &view->xmin, &view->xmax, &view->ymin, &view->ymax, &iterations) < 5) {
+			int scanf_result = sscanf(text[i].text, "%" CTFMT "g,%" CTFMT "g,%" CTFMT "g,%" CTFMT "g,%d,%" CTFMT "g,%" CTFMT "g", &view->xmin, &view->xmax, &view->ymin, &view->ymax, &iterations, &z0r, &z0i);
+			if (scanf_result < 5) {
 				fprintf(stderr, "Invalid " FRACTAL_INFO_TEXT_KEY " format in %s.\n", filename);
 				retval = 1;
 				goto init_from_png_exit;
@@ -221,6 +224,10 @@ int init_from_png(const char *filename, struct options *opts, struct view_range 
 				}
 				if (opts->iterations == -1) 
 					opts->iterations = iterations;
+				if (!(opts->flags & OPT_USER_Z0)) {
+					opts->z0r = z0r;
+					opts->z0i = z0i;
+				}
 			}
 			break;
 		}
@@ -362,11 +369,12 @@ int main(int argc, char *argv[])
 			opts.flags |= OPT_CLEAR;
 			break;
 		case 'z':
-			if (sscanf(optarg, "%" CTFMT "g,%" CTFMT "g", &opts.z0r, &opts.z0i) < 2) {
+			if (sscanf(optarg, "%" CTFMT "g,%" CTFMT "g", &opts.z0r, &opts.z0i) == 2) {
+				opts.flags |= OPT_USER_Z0;
+				break;
+			} else {
 				fprintf(stderr, "Invalid argument for '-z' option.\n");
 				/* Fall through to case '?' */
-			} else {
-				break;
 			}
 		case '?':
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
@@ -530,7 +538,7 @@ int main(int argc, char *argv[])
 							text[1].lang = NULL;
 							text[1].lang_key = NULL;
 							char textbuf[128];
-							text[1].text_length = snprintf(textbuf, sizeof(textbuf), "%.20" CTFMT "g,%.20" CTFMT "g,%.20" CTFMT "g,%.20" CTFMT "g,%d", view.xmin, view.xmax, view.ymin, view.ymax, opts.iterations);
+							text[1].text_length = snprintf(textbuf, sizeof(textbuf), "%.20" CTFMT "g,%.20" CTFMT "g,%.20" CTFMT "g,%.20" CTFMT "g,%d,%.20" CTFMT "g,%.20" CTFMT "g", view.xmin, view.xmax, view.ymin, view.ymax, opts.iterations, opts.z0r, opts.z0i);
 							text[1].text = textbuf;
 							png_set_text(png, info, text, 2);
 
