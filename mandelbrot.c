@@ -52,6 +52,7 @@ struct options {
 	Uint32 *colormap;
 	size_t palsize;
 	int threads;
+	coord_t z0r, z0i;
 };
 
 struct view_range {
@@ -83,8 +84,8 @@ void generate_row(int rownum, SDL_Surface *sfc, const struct options *opts, coor
 	int x; for (x=0; x<opts->width; ++x) {
 		coord_t xx = map(x, 0, opts->width-1, xmin, xmax);
 		
-		coord_t zr = 0.0;
-		coord_t zi = 0.0;
+		coord_t zr = opts->z0r;
+		coord_t zi = opts->z0i;
 		
 		int i = 0;
 		while (i < opts->iterations && zr*zr + zi*zi < 4) {
@@ -260,7 +261,7 @@ void init_options(struct options *opts, struct view_range *view)
 
 void print_usage(FILE *fp, const char *argv0, int default_threads)
 {
-	fprintf(fp, "Usage: %s [-cP] [-w WIDTH] [-h HEIGHT] [-i ITERATIONS] [-p FILENAME] [-t THREADS]" LIBPNG_USAGE "\n\n", argv0);
+	fprintf(fp, "Usage: %s [-cP] [-w WIDTH] [-h HEIGHT] [-i ITERATIONS] [-p FILENAME] [-t THREADS] [-z re,im]" LIBPNG_USAGE "\n\n", argv0);
 	fprintf(fp, " -w\tSets the width of the window. If absent, default size is %dx%d, or a 3:2 ratio with HEIGHT.\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
 	fprintf(fp, " -h\tSets the height of the window. If absent, the same rules will be followed as with WIDTH.\n");
 	fprintf(fp, " -i\tSets the number of iterations that will initially be used. Default is %d.\n", DEFAULT_ITER_COUNT);
@@ -268,6 +269,7 @@ void print_usage(FILE *fp, const char *argv0, int default_threads)
 	fprintf(fp, " -P\tForces the use of the built-in (blue) palette, even if a palette exists with one of the default filenames.\n");
 	fprintf(fp, " -c\tClear the window before redrawing.\n");
 	fprintf(fp, " -t\tSets the number of threads to use. The default is " THREAD_OPT_HELP_DEFAULT_IS ".\n", default_threads);
+	fprintf(fp, " -z\tSets a custom initial value of 'z' in the Mandelbrot equation. Default is 0,0, of course.\n");
 #ifndef NO_LIBPNG
 	fprintf(fp, " -r\tObtain parameters from a PNG image previously saved using the 'S' key. '-w', '-h', and '-i' take precedence.\n");
 #endif
@@ -289,6 +291,7 @@ int main(int argc, char *argv[])
 #else
 	opts.threads = DEFAULT_THREADS;
 #endif
+	opts.z0r = opts.z0i = 0.0;
 	
 	if (argc >= 2 && strcmp(argv[1], "--help") == 0) {
 		print_usage(stdout, argv[0], opts.threads);
@@ -307,7 +310,7 @@ int main(int argc, char *argv[])
 	init_options(&opts, &view);
 	opts.iterations = -1;  /* in case there's a "-r" option given */
 
-	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:Pt:c" LIBPNG_GETOPT)) != -1) {
+	int opt; while ((opt = getopt(argc, argv, "w:h:i:p:Pt:cz:" LIBPNG_GETOPT)) != -1) {
 		switch (opt) {
 		case 'w':
 			opts.width = atoi(optarg);
@@ -358,6 +361,13 @@ int main(int argc, char *argv[])
 		case 'c':
 			opts.flags |= OPT_CLEAR;
 			break;
+		case 'z':
+			if (sscanf(optarg, "%" CTFMT "g,%" CTFMT "g", &opts.z0r, &opts.z0i) < 2) {
+				fprintf(stderr, "Invalid argument for '-z' option.\n");
+				/* Fall through to case '?' */
+			} else {
+				break;
+			}
 		case '?':
 			fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
 			return 255;
