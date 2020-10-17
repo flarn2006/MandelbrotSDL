@@ -147,7 +147,7 @@ void *thread_main(void *arg)
 
 void generate_fractal(SDL_Surface *sfc, const struct options *opts, struct view_range *view, struct thread_data *threads, pthread_cond_t *cond)
 {
-	int i; for (i=0; i<opts->threads; ++i) {
+	for (int i=0; i<opts->threads; ++i) {
 		threads[i].view.xmin = view->xmin;
 		threads[i].view.xmax = view->xmax;
 		threads[i].view.ymin = view->ymin;
@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
 	}
 
 	struct thread_data *threads = calloc(opts.threads, sizeof(struct thread_data));
-	int i; for (i=0; i<opts.threads; ++i) {
+	for (int i=0; i<opts.threads; ++i) {
 		threads[i].flags = 0;
 		threads[i].index = i;
 		threads[i].opts = &opts;
@@ -429,7 +429,7 @@ int main(int argc, char *argv[])
 	}
 
 	SDL_Surface *sfc = SDL_GetWindowSurface(win);
-	for (i=0; i<opts.threads; ++i) {
+	for (int i=0; i<opts.threads; ++i) {
 		threads[i].sfc = sfc;
 	}
 
@@ -449,7 +449,7 @@ int main(int argc, char *argv[])
 		opts.palsize = DEFAULT_ITER_COUNT;
 		opts.colormap = calloc(opts.palsize, sizeof(Uint32));
 
-		int i; for (i=0; i<opts.palsize; ++i) {
+		for (int i=0; i<opts.palsize; ++i) {
 			Uint8 r = max(512, i) - 512;
 			Uint8 g = max(256, min(i, 511)) - 256;
 			Uint8 b = min(i, 255);
@@ -545,7 +545,7 @@ int main(int argc, char *argv[])
 							pngsfc = SDL_CreateRGBSurface(0, opts.width, opts.height, 24, 0xFF, 0xFF00, 0xFF0000, 0);
 							SDL_BlitSurface(sfc, NULL, pngsfc, NULL);
 							pngrows = calloc(opts.height, sizeof(png_const_bytep));
-							for (i=0; i<opts.height; ++i) {
+							for (int i=0; i<opts.height; ++i) {
 								pngrows[i] = pngsfc->pixels + 3 * opts.width * i;
 							}
 							png_set_rows(png, info, pngrows);
@@ -596,12 +596,12 @@ int main(int argc, char *argv[])
         SDL_UpdateWindowSurface(win);
 	}
 
-	for (i=0; i<opts.threads; ++i) 
+	for (int i=0; i<opts.threads; ++i) 
 		threads[i].flags |= THREAD_EXIT;
 	
 	pthread_cond_broadcast(&cond);
 
-	for (i=0; i<opts.threads; ++i) {
+	for (int i=0; i<opts.threads; ++i) {
 		pthread_join(threads[i].thread, NULL);
 		pthread_mutex_destroy(&threads[i].mutex);
 	}
