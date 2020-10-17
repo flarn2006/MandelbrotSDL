@@ -49,6 +49,7 @@ struct options {
 	short flags;
 	int width;
 	int height;
+	int *rowseq;
 	int iterations;
 	Uint32 *colormap;
 	size_t palsize;
@@ -78,6 +79,17 @@ coord_t map(coord_t value, coord_t inputMin, coord_t inputMax, coord_t outputMin
 {
 	coord_t x = (value - inputMin) / (inputMax - inputMin);
 	return x * (outputMax - outputMin) + outputMin;
+}
+
+unsigned int reverse_bits(unsigned int n, int bits)
+{
+	unsigned int out = (bits % 2) ? (n & 1 << bits/2) : 0;
+	for (int i=0; i<bits/2; ++i) {
+		int shift = bits - (2*i + 1);
+		out |= (n & 1 << i) << shift;
+		out |= (n & 1 << (bits - (i + 1))) >> shift;
+	}
+	return out;
 }
 
 void generate_row(int rownum, SDL_Surface *sfc, const struct options *opts, coord_t xmin, coord_t xmax, coord_t y)
@@ -128,11 +140,12 @@ void *thread_main(void *arg)
 		td->flags |= THREAD_BUSY;
 
 		PRINT_THREAD_STATUS("working...");
-		int y; for (y=td->index; y<td->opts->height; y+=td->opts->threads) {
+		for (int r=td->index; r<td->opts->height; r+=td->opts->threads) {
 			if (td->flags & (THREAD_BEGIN | THREAD_EXIT)) {
 				PRINT_THREAD_STATUS("interrupted!");
 				break;
 			} else {
+				int y = td->opts->rowseq[r];
 				coord_t yy = map(y, td->opts->height-1, 0, td->view.ymin, td->view.ymax);
 				generate_row(y, td->sfc, td->opts, td->view.xmin, td->view.xmax, yy);
 			}
@@ -403,6 +416,23 @@ int main(int argc, char *argv[])
 		return 2;
 	}
 
+	opts.rowseq = calloc(opts.height, sizeof(int));
+	int height_pwr2 = 1;
+	int height_pwr2_bits = -1;
+	while (height_pwr2 < opts.height) {
+		height_pwr2 <<= 1;
+		++height_pwr2_bits;
+	}
+	height_pwr2 >>= 1;
+	int height_start = (opts.height - height_pwr2) / 2;
+	for (int i=0; i<height_pwr2; ++i) {
+		opts.rowseq[i] = height_start + reverse_bits(i, height_pwr2_bits);
+	}
+	for (int i=0; i<height_start; ++i) {
+		opts.rowseq[height_pwr2 + 2*i] = i;
+		opts.rowseq[height_pwr2 + 2*i + 1] = height_start + height_pwr2 + i;
+	}
+
 	struct thread_data *threads = calloc(opts.threads, sizeof(struct thread_data));
 	for (int i=0; i<opts.threads; ++i) {
 		threads[i].flags = 0;
@@ -610,6 +640,7 @@ int main(int argc, char *argv[])
 
 	free(threads);
 	free(opts.colormap);
+	free(opts.rowseq);
 	SDL_DestroyWindow(win);
 	SDL_Quit();
 	return 0;
