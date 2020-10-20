@@ -220,7 +220,8 @@ int init_from_png(const char *filename, struct options *opts, struct view_range 
 	png_textp text;
 	int count = png_get_text(png, info, &text, NULL);
     int iterations;
-	coord_t z0r, z0i;
+	coord_t z0r = 0;
+	coord_t z0i = 0;
 	int found = 0;
 	for (int i=0; i<count; ++i) {
 		if (!strcmp(text[i].key, FRACTAL_INFO_TEXT_KEY)) {
