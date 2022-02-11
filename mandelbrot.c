@@ -601,10 +601,10 @@ int main(int argc, char *argv[])
 						perror(filename);
 #endif
 				} else if (event.key.keysym.sym == SDLK_c) {
-					printf("Xmin = % 2.20" CTFMT "f\n", view.xmin);
+					printf("\nXmin = % 2.20" CTFMT "f\n", view.xmin);
 					printf("Xmax = % 2.20" CTFMT "f\n", view.xmax);
 					printf("Ymin = % 2.20" CTFMT "f\n", view.ymin);
-					printf("Ymax = % 2.20" CTFMT "f\n\n", view.ymax);
+					printf("Ymax = % 2.20" CTFMT "f\n", view.ymax);
 					printf("Iter = %d\n", opts.iterations);
 				} else if (event.key.keysym.sym == SDLK_i) {
 					opts.iterations += DEFAULT_ITER_COUNT;
