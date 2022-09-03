@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <getopt.h>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
 #ifdef NO_LIBPNG
 #define LIBPNG_GETOPT ""
