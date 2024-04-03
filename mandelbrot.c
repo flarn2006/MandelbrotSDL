@@ -35,7 +35,7 @@
 #define min(a,b) ((a)<(b)?(a):(b))
 #define max(a,b) ((a)>(b)?(a):(b))
 
-#define SOFTWARE_NAME_FOR_METADATA "MandelbrotSDL by flarn2006"
+#define SOFTWARE_NAME_FOR_METADATA "MandelbrotSDL by Sparkette"
 #define FRACTAL_INFO_TEXT_KEY "FractalInfo"
 #define MSG_SAVED_SCREENSHOT "Saved screenshot to %s\n"
 #define SCREENSHOT_NAME_FMT_WO_EXT "mandel%u"
